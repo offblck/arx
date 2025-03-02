@@ -57,12 +57,12 @@ impl BookmarkStore {
         Ok(())
     }
     fn list(&mut self) {
-        let mut builder = Builder::default();
-        builder.push_record(["ID", "Title"]);
-
-        for (index, bookmark) in self.bookmarks.iter().enumerate() {
-            builder.push_record([index.to_string(), bookmark.title.to_string()]);
-        }
+        //let mut builder = Builder::default();
+        //builder.push_record(["ID", "Title"]);
+        //
+        //for (index, bookmark) in self.bookmarks.iter().enumerate() {
+        //    builder.push_record([index.to_string(), bookmark.title.to_string()]);
+        //}
 
         let mut table = Table::new(&self.bookmarks);
         table.with(Style::rounded());
