@@ -1,15 +1,17 @@
-use clap::{Parser, Subcommand};
+use crate::errors::Result;
+use chrono::{DateTime, Utc};
+use clap::Parser;
+use commands::{AddCommand, CLI, Category, ListArgs, Status, Subcommands};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
 use tabled::{
     Table, Tabled,
-    builder::Builder,
-    settings::{Alignment, Color, Style, object::FirstRow, style::HorizontalLine},
+    settings::{Alignment, Color, Style, object::FirstRow},
 };
 
-type Result<T> = core::result::Result<T, Error>;
-type Error = Box<dyn std::error::Error>;
+mod commands;
+mod errors;
 
 #[derive(Serialize, Deserialize, Default)]
 struct BookmarkStore {
@@ -22,7 +24,30 @@ struct Bookmark {
     id: usize,
     title: String,
     #[tabled(skip)]
+    category: Category,
+    #[tabled(display = "display")]
     url: Option<String>,
+    #[tabled(display = "display_tags")]
+    tags: Option<Vec<String>>,
+    #[tabled(display = "display")]
+    notes: Option<String>,
+    status: Status,
+    hidden: bool,
+    created_at: DateTime<Utc>,
+}
+
+fn display_tags(tags: &Option<Vec<String>>) -> String {
+    match tags {
+        Some(tags) => tags.join(", "),
+        None => "-".to_string(),
+    }
+}
+
+fn display(option: &Option<String>) -> String {
+    match option {
+        Some(option) => option.clone(),
+        None => "-".to_string(),
+    }
 }
 
 impl BookmarkStore {
@@ -35,35 +60,34 @@ impl BookmarkStore {
             fs::read_to_string(&path).map_err(|e| format!("Failed to read bookmarks file: {e}"))?;
         Ok(serde_json::from_str(&data).map_err(|e| format!("Failed to parse bookmarks: {e}"))?)
     }
+
     fn save(&mut self) -> Result<()> {
         let path = get_data_file_path()?;
         let data = serde_json::to_string(&self)
             .map_err(|e| format!("Failed to serialize bookmarks: {e}"))?;
-        Ok(
-            fs::write(&path, data)
-                .map_err(|e| format!("Failed to write bookmakrs to disk: {e}"))?,
-        )
+        Ok(fs::write(&path, data).map_err(|e| format!("Failed to write bookmakrs to disk: {e}"))?)
     }
+
     fn add(&mut self, args: AddCommand) -> Result<()> {
         let id = self.next_id;
         let new_bookmark = Bookmark {
             id,
             title: args.title,
             url: args.url,
+            category: args.category.unwrap_or_default(),
+            tags: args.tags,
+            notes: args.notes,
+            status: args.status.unwrap_or_default(),
+            hidden: args.hidden,
+            created_at: chrono::Utc::now(),
         };
         self.bookmarks.push(new_bookmark);
         self.next_id += 1;
         self.save()?;
         Ok(())
     }
-    fn list(&mut self) {
-        //let mut builder = Builder::default();
-        //builder.push_record(["ID", "Title"]);
-        //
-        //for (index, bookmark) in self.bookmarks.iter().enumerate() {
-        //    builder.push_record([index.to_string(), bookmark.title.to_string()]);
-        //}
 
+    fn list(&mut self, args: ListArgs) {
         let mut table = Table::new(&self.bookmarks);
         table.with(Style::rounded());
 
@@ -87,35 +111,20 @@ fn get_data_file_path() -> Result<PathBuf> {
     Ok(data_dir.join("bookmarks.json"))
 }
 
-#[derive(Parser, Debug)]
-#[command(version = "0.1.0")]
-#[command(about = "A simple CLI bookmark tracker")]
-struct CLI {
-    #[command(subcommand)]
-    command: Subcommands,
-}
-
-#[derive(Subcommand, Debug)]
-enum Subcommands {
-    Add(AddCommand),
-    List,
-}
-
-#[derive(Parser, Debug)]
-struct AddCommand {
-    #[arg(help = "title of your bookmark")]
-    title: String,
-
-    #[arg(help = "add bookmark url")]
-    url: Option<String>,
-}
-
-fn main() -> Result<()> {
+fn run() -> Result<()> {
     let cli = CLI::parse();
     let mut store = BookmarkStore::load()?;
     match cli.command {
         Subcommands::Add(args) => store.add(args)?,
-        Subcommands::List => store.list(),
+        Subcommands::List(args) => store.list(args),
+        Subcommands::Remove(args) => {}
     }
     Ok(())
+}
+
+fn main() {
+    if let Err(err) = run() {
+        eprintln!("Error: {}", err);
+        std::process::exit(1);
+    }
 }
