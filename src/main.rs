@@ -2,7 +2,8 @@ use crate::errors::Result;
 use chrono::{DateTime, Utc};
 use clap::Parser;
 use commands::{
-    AddCommand, CLI, Category, ListArgs, ListFields, RemoveArgs, SearchQuery, Status, Subcommands,
+    AddCommand, CLI, Category, ListArgs, ListFields, OpenArgs, RemoveArgs, SearchQuery, Status,
+    Subcommands,
 };
 use directories::ProjectDirs;
 use errors::Error;
@@ -240,6 +241,26 @@ impl BookmarkStore {
         Ok(())
     }
 
+    fn open(&self, args: OpenArgs) -> Result<()> {
+        match args.query {
+            SearchQuery::Id(id) => match self.bookmarks.iter().find(|b| b.id == id) {
+                Some(bookmark) => match &bookmark.url {
+                    Some(url) => open::that(url)?,
+                    None => return Err(Error::NoUrl(id)),
+                },
+                None => return Err(Error::IDNotFound(id)),
+            },
+            SearchQuery::Query(query) => {
+                let id = fuzz(&query, &self.bookmarks);
+                match &self.bookmarks[id].url {
+                    Some(url) => open::that(url)?,
+                    None => return Err(Error::NoUrl(id)),
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn normalize(&mut self) {
         for id in 0..self.bookmarks.len() {
             if self.bookmarks[id].id != id {
@@ -276,7 +297,7 @@ fn run() -> Result<()> {
         Subcommands::Add(args) => store.add(args)?,
         Subcommands::List(args) => store.list(args)?,
         Subcommands::Remove(query) => store.remove(query)?,
-        Subcommands::Open(args) => {}
+        Subcommands::Open(query) => store.open(query)?,
         Subcommands::CopyUrl(args) => {}
     }
     Ok(())

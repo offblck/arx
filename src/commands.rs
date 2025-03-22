@@ -171,7 +171,7 @@ pub struct OpenArgs {
         help = "open bookmark url by id or fuzzy search query e.g. '123' or 'my query'",
         value_name = "ID | query"
     )]
-    pub id: SearchQuery,
+    pub query: SearchQuery,
 }
 
 #[derive(Parser, Debug)]
@@ -181,5 +181,5 @@ pub struct CopyUrlArgs {
         help = "copy url by id or fuzzy search query e.g. '123' or 'my query'",
         value_name = "ID | query"
     )]
-    pub id: SearchQuery,
+    pub query: SearchQuery,
 }

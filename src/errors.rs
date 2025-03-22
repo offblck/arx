@@ -5,6 +5,9 @@ pub enum Error {
     #[error("Bookmark with ID {0} not found")]
     IDNotFound(usize),
 
+    #[error("Bookmark with ID {0} has no URL")]
+    NoUrl(usize),
+
     #[error("Project directories not found")]
     NoProjectDirs,
 
