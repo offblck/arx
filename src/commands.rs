@@ -3,6 +3,7 @@ use std::{fmt, str::FromStr};
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use tabled::Tabled;
+use thiserror::Error;
 
 #[derive(Parser, Debug)]
 #[command(version = "0.1.0")]
@@ -82,8 +83,12 @@ pub enum Category {
     Other,
 }
 
+#[derive(Error, Debug)]
+#[error("Invalid category: {0}")]
+pub struct CategoryParseError(String);
+
 impl FromStr for Category {
-    type Err = String;
+    type Err = CategoryParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
@@ -92,7 +97,7 @@ impl FromStr for Category {
             "topic" => Ok(Category::Topic),
             "project" => Ok(Category::Project),
             "tool" => Ok(Category::Tool),
-            _ => Err(format!("Invalid category: {}", s)),
+            _ => Err(CategoryParseError(s.to_string())),
         }
     }
 }
@@ -141,7 +146,7 @@ pub struct RemoveArgs {
 
 #[derive(Debug, Clone)]
 pub enum SearchQuery {
-    Id(u64),
+    Id(usize),
     Query(String),
 }
 
@@ -150,7 +155,7 @@ impl FromStr for SearchQuery {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // Try parsing as u64 first
-        if let Ok(id) = s.parse::<u64>() {
+        if let Ok(id) = s.parse::<usize>() {
             Ok(SearchQuery::Id(id))
         } else {
             // If not a number, treat as query string

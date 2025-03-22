@@ -1,10 +1,18 @@
 use crate::errors::Result;
 use chrono::{DateTime, Utc};
 use clap::Parser;
-use commands::{AddCommand, CLI, Category, ListArgs, ListFields, Status, Subcommands};
+use commands::{
+    AddCommand, CLI, Category, ListArgs, ListFields, RemoveArgs, SearchQuery, Status, Subcommands,
+};
 use directories::ProjectDirs;
+use errors::Error;
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    io::{self, Write},
+    path::PathBuf,
+};
+use sublime_fuzzy::best_match;
 use tabled::{
     Tabled,
     builder::Builder,
@@ -45,16 +53,14 @@ impl BookmarkStore {
         if !path.exists() {
             return Ok(BookmarkStore::default());
         }
-        let data =
-            fs::read_to_string(&path).map_err(|e| format!("Failed to read bookmarks file: {e}"))?;
-        Ok(serde_json::from_str(&data).map_err(|e| format!("Failed to parse bookmarks: {e}"))?)
+        let data = fs::read_to_string(&path)?;
+        Ok(serde_json::from_str(&data)?)
     }
 
     fn save(&mut self) -> Result<()> {
         let path = get_data_file_path()?;
-        let data = serde_json::to_string(&self)
-            .map_err(|e| format!("Failed to serialize bookmarks: {e}"))?;
-        Ok(fs::write(&path, data).map_err(|e| format!("Failed to write bookmakrs to disk: {e}"))?)
+        let data = serde_json::to_string(&self)?;
+        Ok(fs::write(&path, data)?)
     }
 
     fn add(&mut self, args: AddCommand) -> Result<()> {
@@ -112,38 +118,34 @@ impl BookmarkStore {
         };
         builder.push_record(headers.clone());
 
+        // Calculate rows
         for bookmark in &self.bookmarks {
-            let row = match args.fields {
+            let mut rows = vec![bookmark.id.to_string(), bookmark.title.clone()];
+            match args.fields {
                 Some(ListFields::Urls) => {
-                    vec![
-                        bookmark.id.to_string(),
-                        bookmark.title.clone(),
+                    rows.extend(vec![
                         bookmark
                             .url
                             .clone()
                             .map(|_url| "[XX]".to_string())
                             .unwrap_or_else(|| "-".to_string()),
-                    ]
+                    ]);
                 }
-                Some(ListFields::Notes) => vec![
-                    bookmark.id.to_string(),
-                    bookmark.title.clone(),
-                    bookmark.notes.clone().unwrap_or("-".to_string()),
-                ],
-                Some(ListFields::Hidden) | None => vec![
-                    bookmark.id.to_string(),
-                    bookmark.title.clone(),
-                    bookmark.category.to_string(),
-                    bookmark.status.to_string(),
-                ],
+                Some(ListFields::Notes) => {
+                    rows.extend(vec![bookmark.notes.clone().unwrap_or("-".to_string())])
+                }
+                Some(ListFields::Hidden) | None => {
+                    rows.extend(vec![bookmark.category.to_string(), bookmark.status.to_string()])
+                }
             };
-            builder.push_record(row);
+            builder.push_record(rows);
         }
 
         let mut table = builder.build();
 
+        // Styling shite
         table
-            .with(Style::ascii())
+            .with(Style::modern())
             .with(TrimStrategy::Horizontal)
             .with(Alignment::center());
 
@@ -197,15 +199,72 @@ impl BookmarkStore {
 
         Ok(())
     }
+
+    fn remove(&mut self, args: RemoveArgs) -> Result<()> {
+        match args.id {
+            SearchQuery::Id(id) => match self.bookmarks.iter().position(|e| e.id == id) {
+                Some(id) => {
+                    let title = &mut self.bookmarks[id].title.clone();
+                    if title.len() > 24 {
+                        title.truncate(21);
+                        title.push_str("...");
+                    }
+                    let _ = self.bookmarks.remove(id);
+                    println!("Successfully removed #{id} - {}", title);
+                    self.normalize();
+                }
+                None => {
+                    return Err(Error::IDNotFound(id));
+                }
+            },
+            SearchQuery::Query(query) => {
+                let id = fuzz(&query, &self.bookmarks);
+                let title = &mut self.bookmarks[id].title.clone();
+                if title.len() > 24 {
+                    title.truncate(21);
+                    title.push_str("...");
+                }
+                print!("Confirm removing '{}' from your bookmarks [y/n] ", title);
+                io::stdout().flush()?;
+
+                let mut input = String::new();
+                io::stdin().read_line(&mut input)?;
+                let input = input.trim().to_lowercase();
+                if input == "y" {
+                    let _ = self.bookmarks.remove(id);
+                    self.normalize();
+                }
+            }
+        };
+        self.save()?;
+        Ok(())
+    }
+
+    fn normalize(&mut self) {
+        for id in 0..self.bookmarks.len() {
+            if self.bookmarks[id].id != id {
+                self.bookmarks[id].id = id;
+            }
+        }
+        self.next_id = self.bookmarks.len();
+    }
+}
+
+fn fuzz<'a>(query: &str, store: &Vec<Bookmark>) -> usize {
+    let (id, _) = store
+        .iter()
+        .filter_map(|i| best_match(query, &i.title))
+        .enumerate()
+        .max_by(|(id, a), (id2, b)| a.score().cmp(&b.score()))
+        .unwrap();
+    id
 }
 
 fn get_data_file_path() -> Result<PathBuf> {
-    let proj_dirs = ProjectDirs::from("xyz", "arx", "offblck")
-        .ok_or_else(|| "Could not determine app data directory on system")?;
+    let proj_dirs = ProjectDirs::from("xyz", "arx", "offblck").ok_or(Error::NoProjectDirs)?;
     let data_dir = proj_dirs.data_dir();
     if !data_dir.exists() {
-        fs::create_dir_all(data_dir)
-            .map_err(|e| format!("Failed to create data directory: {}", e))?;
+        fs::create_dir_all(data_dir)?;
     }
     Ok(data_dir.join("bookmarks.json"))
 }
@@ -216,7 +275,7 @@ fn run() -> Result<()> {
     match cli.command {
         Subcommands::Add(args) => store.add(args)?,
         Subcommands::List(args) => store.list(args)?,
-        Subcommands::Remove(args) => {}
+        Subcommands::Remove(query) => store.remove(query)?,
         Subcommands::Open(args) => {}
         Subcommands::CopyUrl(args) => {}
     }
@@ -225,7 +284,7 @@ fn run() -> Result<()> {
 
 fn main() {
     if let Err(err) = run() {
-        eprintln!("Error: {}", err);
+        eprintln!("[Error] {}", err);
         std::process::exit(1);
     }
 }
