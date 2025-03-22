@@ -6,10 +6,10 @@ use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
 use tabled::{
-    Table, Tabled,
+    Tabled,
     builder::Builder,
     settings::{
-        Alignment, Color, Modify, Padding, Style, Width,
+        Alignment, Color, Padding, Style, Width,
         formatting::TrimStrategy,
         object::{Columns, FirstRow, Object, Rows},
         width::MinWidth,
@@ -26,35 +26,17 @@ struct BookmarkStore {
     bookmarks: Vec<Bookmark>,
 }
 
-#[derive(Serialize, Deserialize, Tabled)]
+#[derive(Serialize, Deserialize)]
 struct Bookmark {
     id: usize,
     title: String,
-    #[tabled(skip)]
     category: Category,
-    #[tabled(display = "display")]
     url: Option<String>,
-    #[tabled(display = "display_tags")]
     tags: Option<Vec<String>>,
-    #[tabled(display = "display")]
     notes: Option<String>,
     status: Status,
     hidden: bool,
     created_at: DateTime<Utc>,
-}
-
-fn display_tags(tags: &Option<Vec<String>>) -> String {
-    match tags {
-        Some(tags) => tags.join(", "),
-        None => "-".to_string(),
-    }
-}
-
-fn display(option: &Option<String>) -> String {
-    match option {
-        Some(option) => option.clone(),
-        None => "-".to_string(),
-    }
 }
 
 impl BookmarkStore {
@@ -94,15 +76,18 @@ impl BookmarkStore {
         Ok(())
     }
 
-    fn list(&mut self, args: ListArgs) {
+    fn list(&mut self, mut args: ListArgs) -> Result<()> {
         if self.bookmarks.is_empty() {
             println!("You have no bookmarks yet...");
-            return;
+            return Ok(());
         }
 
-        let mut builder = Builder::default();
-        let default_headers = vec!["id".to_string(), "name".to_string()];
+        self.filter_args(&mut args)?;
 
+        let mut builder = Builder::default();
+
+        // Initialize headers and calculate column widths
+        let default_headers = vec!["id".to_string(), "name".to_string()];
         let (headers, column_widths): (Vec<String>, Vec<(usize, usize)>) = match args.fields {
             Some(ListFields::Urls) => {
                 // Headers: id, name, url
@@ -125,11 +110,8 @@ impl BookmarkStore {
                 (headers, widths)
             }
         };
-
-        // Set the headers
         builder.push_record(headers.clone());
 
-        // Build rows
         for bookmark in &self.bookmarks {
             let row = match args.fields {
                 Some(ListFields::Urls) => {
@@ -158,10 +140,8 @@ impl BookmarkStore {
             builder.push_record(row);
         }
 
-        // Create the table from the builder
         let mut table = builder.build();
 
-        // Apply common styling
         table
             .with(Style::ascii())
             .with(TrimStrategy::Horizontal)
@@ -193,6 +173,29 @@ impl BookmarkStore {
         }
 
         println!("{table}");
+        Ok(())
+    }
+
+    fn filter_args(&mut self, args: &mut ListArgs) -> Result<()> {
+        match args.fields {
+            Some(ListFields::Urls) => self.bookmarks.retain(|b| b.url.is_some()),
+            Some(ListFields::Notes) => self.bookmarks.retain(|b| b.notes.is_some()),
+            Some(ListFields::Hidden) => self.bookmarks.retain(|b| b.hidden),
+            None => {}
+        }
+
+        if let Some(category) = &args.category {
+            let category = category.parse()?;
+            self.bookmarks.retain(|b| b.category == category);
+        }
+
+        if let Some(tag) = &args.tag {
+            self.bookmarks.retain(|b| b.tags.is_some());
+            self.bookmarks
+                .retain(|b| b.tags.as_ref().unwrap().contains(tag));
+        }
+
+        Ok(())
     }
 }
 
@@ -212,8 +215,10 @@ fn run() -> Result<()> {
     let mut store = BookmarkStore::load()?;
     match cli.command {
         Subcommands::Add(args) => store.add(args)?,
-        Subcommands::List(args) => store.list(args),
+        Subcommands::List(args) => store.list(args)?,
         Subcommands::Remove(args) => {}
+        Subcommands::Open(args) => {}
+        Subcommands::CopyUrl(args) => {}
     }
     Ok(())
 }

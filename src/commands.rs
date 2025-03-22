@@ -16,11 +16,17 @@ pub struct CLI {
 pub enum Subcommands {
     Add(AddCommand),
 
-    #[clap(alias = "ls")]
+    #[clap(about = "list bookmarks (alias: ls)", alias = "ls")]
     List(ListArgs),
 
-    #[clap(aliases = ["rm", "del", "delete"])]
+    #[clap(about = "remove bookmark (alias: rm, del, delete)", aliases = ["rm", "del", "delete"])]
     Remove(RemoveArgs),
+
+    #[clap(about = "open bookmark url in browser")]
+    Open(OpenArgs),
+
+    #[clap(name = "copy-url", about = "copy bookmark url (alias: cp)", alias = "cp")]
+    CopyUrl(CopyUrlArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -65,7 +71,7 @@ impl fmt::Display for Status {
     }
 }
 
-#[derive(Debug, Clone, clap::ValueEnum, Serialize, Deserialize, Tabled, Default)]
+#[derive(Debug, Clone, clap::ValueEnum, Serialize, Deserialize, Tabled, Default, PartialEq)]
 pub enum Category {
     Book,
     Article,
@@ -74,6 +80,21 @@ pub enum Category {
     Tool,
     #[default]
     Other,
+}
+
+impl FromStr for Category {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "book" => Ok(Category::Book),
+            "article" => Ok(Category::Article),
+            "topic" => Ok(Category::Topic),
+            "project" => Ok(Category::Project),
+            "tool" => Ok(Category::Tool),
+            _ => Err(format!("Invalid category: {}", s)),
+        }
+    }
 }
 
 impl fmt::Display for Category {
@@ -110,7 +131,11 @@ pub struct ListArgs {
 
 #[derive(Parser, Debug)]
 pub struct RemoveArgs {
-    #[arg(required = true, help = "remove bookmark by id")]
+    #[arg(
+        required = true,
+        help = "remove bookmark by ID or fuzzy search query e.g. '123' or 'my query'",
+        value_name = "ID | query"
+    )]
     pub id: SearchQuery,
 }
 
@@ -132,4 +157,24 @@ impl FromStr for SearchQuery {
             Ok(SearchQuery::Query(s.to_string()))
         }
     }
+}
+
+#[derive(Parser, Debug)]
+pub struct OpenArgs {
+    #[arg(
+        required = true,
+        help = "open bookmark url by id or fuzzy search query e.g. '123' or 'my query'",
+        value_name = "ID | query"
+    )]
+    pub id: SearchQuery,
+}
+
+#[derive(Parser, Debug)]
+pub struct CopyUrlArgs {
+    #[arg(
+        required = true,
+        help = "copy url by id or fuzzy search query e.g. '123' or 'my query'",
+        value_name = "ID | query"
+    )]
+    pub id: SearchQuery,
 }
