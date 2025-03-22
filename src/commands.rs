@@ -76,7 +76,20 @@ pub enum Category {
     Other,
 }
 
-#[derive(Debug, Clone, clap::ValueEnum)]
+impl fmt::Display for Category {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Category::Book => write!(f, "Book"),
+            Category::Article => write!(f, "Article"),
+            Category::Topic => write!(f, "Topic"),
+            Category::Project => write!(f, "Project"),
+            Category::Tool => write!(f, "Tool"),
+            Category::Other => write!(f, "Other"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, clap::ValueEnum, PartialEq)]
 pub enum ListFields {
     Urls,
     Notes,

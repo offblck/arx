@@ -1,14 +1,21 @@
 use crate::errors::Result;
 use chrono::{DateTime, Utc};
 use clap::Parser;
-use commands::{AddCommand, CLI, Category, ListArgs, Status, Subcommands};
+use commands::{AddCommand, CLI, Category, ListArgs, ListFields, Status, Subcommands};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
 use tabled::{
     Table, Tabled,
-    settings::{Alignment, Color, Style, object::FirstRow},
+    builder::Builder,
+    settings::{
+        Alignment, Color, Modify, Padding, Style, Width,
+        formatting::TrimStrategy,
+        object::{Columns, FirstRow, Object, Rows},
+        width::MinWidth,
+    },
 };
+use terminal_link::Link;
 
 mod commands;
 mod errors;
@@ -88,13 +95,102 @@ impl BookmarkStore {
     }
 
     fn list(&mut self, args: ListArgs) {
-        let mut table = Table::new(&self.bookmarks);
-        table.with(Style::rounded());
+        if self.bookmarks.is_empty() {
+            println!("You have no bookmarks yet...");
+            return;
+        }
+
+        let mut builder = Builder::default();
+        let default_headers = vec!["id".to_string(), "name".to_string()];
+
+        let (headers, column_widths): (Vec<String>, Vec<(usize, usize)>) = match args.fields {
+            Some(ListFields::Urls) => {
+                // Headers: id, name, url
+                let mut headers = default_headers;
+                headers.extend(vec!["url".to_string()]);
+                let widths = vec![(1, 63), (2, 4)];
+                (headers, widths)
+            }
+            Some(ListFields::Notes) => {
+                let mut headers = default_headers;
+                headers.extend(vec!["notes".to_string()]);
+                // Widths: name (index 1) = 50
+                let widths = vec![(1, 19), (2, 48)];
+                (headers, widths)
+            }
+            Some(ListFields::Hidden) | None => {
+                let mut headers = default_headers;
+                headers.extend(vec!["category".to_string(), "status".to_string()]);
+                let widths = vec![(1, 48), (2, 8), (3, 8)];
+                (headers, widths)
+            }
+        };
+
+        // Set the headers
+        builder.push_record(headers.clone());
+
+        // Build rows
+        for bookmark in &self.bookmarks {
+            let row = match args.fields {
+                Some(ListFields::Urls) => {
+                    vec![
+                        bookmark.id.to_string(),
+                        bookmark.title.clone(),
+                        bookmark
+                            .url
+                            .clone()
+                            .map(|_url| "[XX]".to_string())
+                            .unwrap_or_else(|| "-".to_string()),
+                    ]
+                }
+                Some(ListFields::Notes) => vec![
+                    bookmark.id.to_string(),
+                    bookmark.title.clone(),
+                    bookmark.notes.clone().unwrap_or("-".to_string()),
+                ],
+                Some(ListFields::Hidden) | None => vec![
+                    bookmark.id.to_string(),
+                    bookmark.title.clone(),
+                    bookmark.category.to_string(),
+                    bookmark.status.to_string(),
+                ],
+            };
+            builder.push_record(row);
+        }
+
+        // Create the table from the builder
+        let mut table = builder.build();
+
+        // Apply common styling
+        table
+            .with(Style::ascii())
+            .with(TrimStrategy::Horizontal)
+            .with(Alignment::center());
 
         table
-            .modify(FirstRow, Alignment::center())
+            .modify(Columns::single(0), Padding::zero())
+            .modify(Columns::single(0), MinWidth::new(5))
+            .modify(Columns::single(1).intersect(Rows::new(1..)), Alignment::left())
             .modify(FirstRow, Color::BG_WHITE)
             .modify(FirstRow, Color::FG_RED);
+
+        for (index, width) in column_widths {
+            table.modify(Columns::single(index), MinWidth::new(width));
+            // if index == 1 {
+            table.modify(Columns::single(index), Width::truncate(width));
+            // } else {
+            //     table.modify(Columns::single(index), Width::wrap(width));
+            // }
+        }
+        let mut table = table.to_string();
+        if args.fields == Some(ListFields::Urls) {
+            for bookmark in &self.bookmarks {
+                if let Some(url) = &bookmark.url {
+                    let link = Link::new("LINK", url).to_string();
+                    table = table.replace("[XX]", &link);
+                }
+            }
+        }
 
         println!("{table}");
     }
@@ -102,7 +198,7 @@ impl BookmarkStore {
 
 fn get_data_file_path() -> Result<PathBuf> {
     let proj_dirs = ProjectDirs::from("xyz", "arx", "offblck")
-        .ok_or_else(|| String::from("Could not determine app data directory on system"))?;
+        .ok_or_else(|| "Could not determine app data directory on system")?;
     let data_dir = proj_dirs.data_dir();
     if !data_dir.exists() {
         fs::create_dir_all(data_dir)
