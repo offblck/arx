@@ -1,9 +1,10 @@
 use crate::errors::Result;
 use chrono::{DateTime, Utc};
 use clap::Parser;
+use cli_clipboard::{ClipboardContext, ClipboardProvider};
 use commands::{
-    AddCommand, CLI, Category, ListArgs, ListFields, OpenArgs, RemoveArgs, SearchQuery, Status,
-    Subcommands,
+    AddCommand, CLI, Category, CopyUrlArgs, ListArgs, ListFields, OpenArgs, RemoveArgs,
+    SearchQuery, Status, Subcommands,
 };
 use directories::ProjectDirs;
 use errors::Error;
@@ -18,9 +19,9 @@ use tabled::{
     Tabled,
     builder::Builder,
     settings::{
-        Alignment, Color, Padding, Style, Width,
+        Alignment, Border, Color, Padding, Style, Width,
         formatting::TrimStrategy,
-        object::{Columns, FirstRow, Object, Rows},
+        object::{Cell, Columns, FirstRow, Object, Rows},
         width::MinWidth,
     },
 };
@@ -89,12 +90,13 @@ impl BookmarkStore {
             return Ok(());
         }
 
+        // filter if a field is specified, e.g. only entries with urls/notes/etc.
         self.filter_args(&mut args)?;
 
         let mut builder = Builder::default();
 
         // Initialize headers and calculate column widths
-        let default_headers = vec!["id".to_string(), "name".to_string()];
+        let default_headers = vec!["ID".to_string(), "name".to_string()];
         let (headers, column_widths): (Vec<String>, Vec<(usize, usize)>) = match args.fields {
             Some(ListFields::Urls) => {
                 // Headers: id, name, url
@@ -120,11 +122,15 @@ impl BookmarkStore {
         builder.push_record(headers.clone());
 
         // Calculate rows
-        for bookmark in &self.bookmarks {
-            let mut rows = vec![bookmark.id.to_string(), bookmark.title.clone()];
+        let mut pending = vec![];
+        for (id, bookmark) in self.bookmarks.iter_mut().enumerate() {
+            let mut row = vec![bookmark.id.to_string(), bookmark.title.clone()];
+            if bookmark.status == Status::Pending {
+                pending.push(id);
+            }
             match args.fields {
                 Some(ListFields::Urls) => {
-                    rows.extend(vec![
+                    row.extend(vec![
                         bookmark
                             .url
                             .clone()
@@ -133,13 +139,13 @@ impl BookmarkStore {
                     ]);
                 }
                 Some(ListFields::Notes) => {
-                    rows.extend(vec![bookmark.notes.clone().unwrap_or("-".to_string())])
+                    row.extend(vec![bookmark.notes.clone().unwrap_or("-".to_string())])
                 }
                 Some(ListFields::Hidden) | None => {
-                    rows.extend(vec![bookmark.category.to_string(), bookmark.status.to_string()])
+                    row.extend(vec![bookmark.category.to_string(), bookmark.status.to_string()])
                 }
             };
-            builder.push_record(rows);
+            builder.push_record(row);
         }
 
         let mut table = builder.build();
@@ -148,14 +154,36 @@ impl BookmarkStore {
         table
             .with(Style::modern())
             .with(TrimStrategy::Horizontal)
+            .with(Color::rgb_fg(152, 152, 152))
             .with(Alignment::center());
+
+        let first_cell_border = Border::default()
+            .corner_bottom_left('┡')
+            .corner_bottom_right('╇')
+            .corner_top_left('┏')
+            .corner_top_right('┳')
+            .left('┃')
+            .right('┃')
+            .bottom('━')
+            .top('━');
+
+        let middle_cell_border = first_cell_border
+            .corner_bottom_left('╇')
+            .corner_top_left('┳');
+
+        let last_cell_border = middle_cell_border
+            .corner_top_right('┓')
+            .corner_bottom_right('┩');
 
         table
             .modify(Columns::single(0), Padding::zero())
             .modify(Columns::single(0), MinWidth::new(5))
             .modify(Columns::single(1).intersect(Rows::new(1..)), Alignment::left())
-            .modify(FirstRow, Color::BG_WHITE)
-            .modify(FirstRow, Color::FG_RED);
+            .modify(FirstRow, Color::FG_YELLOW)
+            .modify(Cell::new(0, 0), first_cell_border)
+            .modify(FirstRow.intersect(Columns::new(1..headers.len())), middle_cell_border)
+            .modify(Cell::new(0, headers.len() - 1), last_cell_border)
+            .modify(Columns::single(0), Color::FG_WHITE);
 
         for (index, width) in column_widths {
             table.modify(Columns::single(index), MinWidth::new(width));
@@ -165,14 +193,26 @@ impl BookmarkStore {
             //     table.modify(Columns::single(index), Width::wrap(width));
             // }
         }
+
+        for id in pending {
+            table.modify(Cell::new(id + 1, 1), Color::FG_BRIGHT_WHITE);
+        }
+
         let mut table = table.to_string();
         if args.fields == Some(ListFields::Urls) {
-            for bookmark in &self.bookmarks {
+            let mut lines: Vec<String> = table.lines().map(String::from).collect();
+            for (id, bookmark) in self.bookmarks.iter().enumerate() {
                 if let Some(url) = &bookmark.url {
                     let link = Link::new("LINK", url).to_string();
-                    table = table.replace("[XX]", &link);
+                    let line_id = 3 + 2 * id;
+                    lines[line_id] = lines[line_id].replace("[XX]", &link);
                 }
             }
+            table = lines.join("\n");
+        }
+        if table.lines().count() <= 3 {
+            println!("No bookmarks found.");
+            return Ok(());
         }
 
         println!("{table}");
@@ -261,6 +301,26 @@ impl BookmarkStore {
         Ok(())
     }
 
+    fn copy_url(&self, args: CopyUrlArgs) -> Result<()> {
+        match args.query {
+            SearchQuery::Id(id) => match self.bookmarks.iter().find(|b| b.id == id) {
+                Some(bookmark) => match &bookmark.url {
+                    Some(url) => copy(url.to_owned())?,
+                    None => return Err(Error::NoUrl(id)),
+                },
+                None => return Err(Error::IDNotFound(id)),
+            },
+            SearchQuery::Query(query) => {
+                let id = fuzz(&query, &self.bookmarks);
+                match &self.bookmarks[id].url {
+                    Some(url) => copy(url.to_owned())?,
+                    None => return Err(Error::NoUrl(id)),
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn normalize(&mut self) {
         for id in 0..self.bookmarks.len() {
             if self.bookmarks[id].id != id {
@@ -271,12 +331,20 @@ impl BookmarkStore {
     }
 }
 
+fn copy(text: String) -> Result<()> {
+    let mut ctx = ClipboardContext::new().map_err(|e| Error::ClipboardNotFound(e.to_string()))?;
+    println!("{}", text);
+    ctx.set_contents(text)
+        .map_err(|e| Error::ClipboardCopyError(e.to_string()))?;
+    Ok(())
+}
+
 fn fuzz<'a>(query: &str, store: &Vec<Bookmark>) -> usize {
     let (id, _) = store
         .iter()
         .filter_map(|i| best_match(query, &i.title))
         .enumerate()
-        .max_by(|(id, a), (id2, b)| a.score().cmp(&b.score()))
+        .max_by(|(_, a), (_, b)| a.score().cmp(&b.score()))
         .unwrap();
     id
 }
@@ -298,7 +366,7 @@ fn run() -> Result<()> {
         Subcommands::List(args) => store.list(args)?,
         Subcommands::Remove(query) => store.remove(query)?,
         Subcommands::Open(query) => store.open(query)?,
-        Subcommands::CopyUrl(args) => {}
+        Subcommands::CopyUrl(query) => store.copy_url(query)?,
     }
     Ok(())
 }

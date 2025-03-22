@@ -54,7 +54,7 @@ pub struct AddCommand {
     pub hidden: bool,
 }
 
-#[derive(Debug, Clone, clap::ValueEnum, Serialize, Deserialize, Tabled, Default)]
+#[derive(Debug, Clone, clap::ValueEnum, Serialize, Deserialize, Tabled, Default, PartialEq)]
 pub enum Status {
     #[default]
     None,
@@ -105,12 +105,12 @@ impl FromStr for Category {
 impl fmt::Display for Category {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Category::Book => write!(f, "Book"),
-            Category::Article => write!(f, "Article"),
-            Category::Topic => write!(f, "Topic"),
-            Category::Project => write!(f, "Project"),
-            Category::Tool => write!(f, "Tool"),
-            Category::Other => write!(f, "Other"),
+            Category::Book => write!(f, "book"),
+            Category::Article => write!(f, "article"),
+            Category::Topic => write!(f, "topic"),
+            Category::Project => write!(f, "project"),
+            Category::Tool => write!(f, "tool"),
+            Category::Other => write!(f, "other"),
         }
     }
 }
@@ -178,7 +178,8 @@ pub struct OpenArgs {
 pub struct CopyUrlArgs {
     #[arg(
         required = true,
-        help = "copy url by id or fuzzy search query e.g. '123' or 'my query'",
+        help = "copy url to clipboard",
+        long_help = "copy bookmark url to clipboard / display url for old terminals, specified by id or fuzzy search query e.g. '123' or 'my query'",
         value_name = "ID | query"
     )]
     pub query: SearchQuery,

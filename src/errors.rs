@@ -11,6 +11,12 @@ pub enum Error {
     #[error("Project directories not found")]
     NoProjectDirs,
 
+    #[error("Clipboard not found: {0}")]
+    ClipboardNotFound(String),
+
+    #[error("Could not copy to clipboard: {0}")]
+    ClipboardCopyError(String),
+
     #[error("Invalid category: {0}")]
     CategoryParseError(#[from] CategoryParseError),
 
