@@ -2,7 +2,7 @@ use crate::errors::Result;
 use chrono::{DateTime, Utc};
 use clap::Parser;
 use cli_clipboard::{ClipboardContext, ClipboardProvider};
-use colored::Colorize;
+use comfy_table::{Cell, CellAlignment, Color, ColumnConstraint, Table, Width, presets::UTF8_FULL};
 use commands::{
     AddArgs, CLI, Category, CopyUrlArgs, EditArgs, ListArgs, ListFields, OpenArgs, RemoveArgs,
     SearchQuery, Status, Subcommands,
@@ -16,16 +16,6 @@ use std::{
     path::PathBuf,
 };
 use sublime_fuzzy::best_match;
-use tabled::{
-    Tabled,
-    builder::Builder,
-    settings::{
-        Alignment, Border, Color, Format, Modify, Padding, Style, Width,
-        formatting::TrimStrategy,
-        object::{Cell, Columns, FirstRow, Object, Rows},
-        width::MinWidth,
-    },
-};
 use terminal_link::Link;
 
 mod commands;
@@ -94,33 +84,44 @@ impl BookmarkStore {
         // filter if a field is specified, e.g. only entries with urls/notes/etc.
         self.filter_args(&mut args)?;
 
-        let mut builder = Builder::default();
+        let mut table = Table::new();
+        table.load_preset(UTF8_FULL);
 
         // Initialize headers and calculate column widths
-        let default_headers = vec!["ID".to_string(), "name".to_string()];
-        let (headers, column_widths): (Vec<String>, Vec<(usize, usize)>) = match args.fields {
+        let mut headers = vec![Cell::new("ID"), Cell::new("name")];
+        let column_widths: Vec<(usize, usize)> = match args.fields {
             Some(ListFields::Urls) => {
-                // Headers: id, name, url
-                let mut headers = default_headers;
-                headers.extend(vec!["url".to_string()]);
-                let widths = vec![(1, 63), (2, 4)];
-                (headers, widths)
+                headers.push(Cell::new("url"));
+                vec![(1, 65), (2, 6)]
             }
             Some(ListFields::Notes) => {
-                let mut headers = default_headers;
-                headers.extend(vec!["notes".to_string()]);
-                // Widths: name (index 1) = 50
-                let widths = vec![(1, 19), (2, 48)];
-                (headers, widths)
+                headers.push(Cell::new("notes"));
+                vec![(1, 21), (2, 50)]
             }
             Some(ListFields::Hidden) | None => {
-                let mut headers = default_headers;
-                headers.extend(vec!["category".to_string(), "status".to_string()]);
-                let widths = vec![(1, 48), (2, 8), (3, 8)];
-                (headers, widths)
+                headers.extend(vec![Cell::new("category"), Cell::new("status")]);
+                vec![(1, 50), (2, 10), (3, 10)]
             }
         };
-        builder.push_record(headers.clone());
+
+        headers = headers
+            .into_iter()
+            .map(|cell| cell.fg(Color::Yellow))
+            .collect();
+
+        // Build header row w/ column widths
+        table.set_header(headers);
+        let id_col = table.column_mut(0).expect("id column exists");
+        id_col.set_constraint(ColumnConstraint::Absolute(Width::Fixed(5)));
+        let name_col = table.column_mut(1).expect("name column exists");
+        name_col.set_cell_alignment(CellAlignment::Left);
+        for (index, width) in column_widths {
+            let column = table.column_mut(index).expect("col should exist");
+            column.set_constraint(ColumnConstraint::Absolute(Width::Fixed(width as u16)));
+            if index > 1 {
+                column.set_cell_alignment(CellAlignment::Center);
+            }
+        }
 
         // Calculate rows
         let mut pending = vec![];
@@ -146,58 +147,46 @@ impl BookmarkStore {
                     row.extend(vec![bookmark.category.to_string(), bookmark.status.to_string()])
                 }
             };
-            builder.push_record(row);
+            table.add_row(row);
         }
 
-        let mut table = builder.build();
+        // // Styling shite
+        // table
+        //     .with(Style::modern())
+        //     .with(TrimStrategy::Horizontal)
+        //     .with(Color::rgb_fg(152, 152, 152))
+        //     .with(Alignment::center());
 
-        // Styling shite
-        table
-            .with(Style::modern())
-            .with(TrimStrategy::Horizontal)
-            .with(Color::rgb_fg(152, 152, 152))
-            .with(Alignment::center());
+        // let first_cell_border = Border::default()
+        //     .corner_bottom_left('┡')
+        //     .corner_bottom_right('╇')
+        //     .corner_top_left('┏')
+        //     .corner_top_right('┳')
+        //     .left('┃')
+        //     .right('┃')
+        //     .bottom('━')
+        //     .top('━');
 
-        let first_cell_border = Border::default()
-            .corner_bottom_left('┡')
-            .corner_bottom_right('╇')
-            .corner_top_left('┏')
-            .corner_top_right('┳')
-            .left('┃')
-            .right('┃')
-            .bottom('━')
-            .top('━');
+        // let middle_cell_border = first_cell_border
+        //     .corner_bottom_left('╇')
+        //     .corner_top_left('┳');
 
-        let middle_cell_border = first_cell_border
-            .corner_bottom_left('╇')
-            .corner_top_left('┳');
+        // let last_cell_border = middle_cell_border
+        //     .corner_top_right('┓')
+        //     .corner_bottom_right('┩');
 
-        let last_cell_border = middle_cell_border
-            .corner_top_right('┓')
-            .corner_bottom_right('┩');
+        // table
+        //     .modify(Columns::single(0), Padding::zero())
+        //     // .modify(FirstRow, Format::content(|s| format!("{}", s.bold().yellow())))
+        //     .modify(Columns::single(1).intersect(Rows::new(1..)), Alignment::left())
+        //     .modify(Cell::new(0, 0), first_cell_border)
+        //     .modify(FirstRow.intersect(Columns::new(1..headers.len())), middle_cell_border)
+        //     .modify(Cell::new(0, headers.len() - 1), last_cell_border)
+        //     .modify(Columns::single(0), Color::FG_WHITE);
 
-        table
-            .modify(Columns::single(0), Padding::zero())
-            // .modify(FirstRow, Format::content(|s| format!("{}", s.bold().yellow())))
-            .modify(Columns::single(0), MinWidth::new(5))
-            .modify(Columns::single(1).intersect(Rows::new(1..)), Alignment::left())
-            .modify(Cell::new(0, 0), first_cell_border)
-            .modify(FirstRow.intersect(Columns::new(1..headers.len())), middle_cell_border)
-            .modify(Cell::new(0, headers.len() - 1), last_cell_border)
-            .modify(Columns::single(0), Color::FG_WHITE);
-
-        for (index, width) in column_widths {
-            table.modify(Columns::single(index), MinWidth::new(width));
-            // if index == 1 {
-            table.modify(Columns::single(index), Width::truncate(width));
-            // } else {
-            //     table.modify(Columns::single(index), Width::wrap(width));
-            // }
-        }
-
-        for id in pending {
-            table.modify(Cell::new(id + 1, 1), Color::FG_BRIGHT_WHITE);
-        }
+        // for id in pending {
+        //     table.modify(Cell::new(id + 1, 1), Color::FG_BRIGHT_WHITE);
+        // }
 
         let mut table = table.to_string();
         if args.fields == Some(ListFields::Urls) {

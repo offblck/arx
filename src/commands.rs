@@ -2,7 +2,6 @@ use std::{fmt, str::FromStr};
 
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
-use tabled::Tabled;
 use thiserror::Error;
 
 #[derive(Parser, Debug)]
@@ -58,7 +57,7 @@ pub struct AddArgs {
     pub hidden: bool,
 }
 
-#[derive(Debug, Clone, clap::ValueEnum, Serialize, Deserialize, Tabled, Default, PartialEq)]
+#[derive(Debug, Clone, clap::ValueEnum, Serialize, Deserialize, Default, PartialEq)]
 pub enum Status {
     #[default]
     None,
@@ -76,7 +75,7 @@ impl fmt::Display for Status {
     }
 }
 
-#[derive(Debug, Clone, clap::ValueEnum, Serialize, Deserialize, Tabled, Default, PartialEq)]
+#[derive(Debug, Clone, clap::ValueEnum, Serialize, Deserialize, Default, PartialEq)]
 pub enum Category {
     Book,
     Article,
