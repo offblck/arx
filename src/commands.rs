@@ -15,7 +15,8 @@ pub struct CLI {
 
 #[derive(Subcommand, Debug)]
 pub enum Subcommands {
-    Add(AddCommand),
+    #[clap(about = "add bookmark")]
+    Add(AddArgs),
 
     #[clap(about = "list bookmarks (alias: ls)", alias = "ls")]
     List(ListArgs),
@@ -26,12 +27,15 @@ pub enum Subcommands {
     #[clap(about = "open bookmark url in browser")]
     Open(OpenArgs),
 
+    #[clap(about = "edit bookmark")]
+    Edit(EditArgs),
+
     #[clap(name = "copy-url", about = "copy bookmark url (alias: cp)", alias = "cp")]
     CopyUrl(CopyUrlArgs),
 }
 
 #[derive(Parser, Debug)]
-pub struct AddCommand {
+pub struct AddArgs {
     #[arg(help = "title of your bookmark")]
     pub title: String,
 
@@ -79,6 +83,7 @@ pub enum Category {
     Topic,
     Project,
     Tool,
+    Course,
     #[default]
     Other,
 }
@@ -97,6 +102,7 @@ impl FromStr for Category {
             "topic" => Ok(Category::Topic),
             "project" => Ok(Category::Project),
             "tool" => Ok(Category::Tool),
+            "course" => Ok(Category::Course),
             _ => Err(CategoryParseError(s.to_string())),
         }
     }
@@ -110,6 +116,7 @@ impl fmt::Display for Category {
             Category::Topic => write!(f, "topic"),
             Category::Project => write!(f, "project"),
             Category::Tool => write!(f, "tool"),
+            Category::Course => write!(f, "course"),
             Category::Other => write!(f, "other"),
         }
     }
@@ -162,6 +169,32 @@ impl FromStr for SearchQuery {
             Ok(SearchQuery::Query(s.to_string()))
         }
     }
+}
+
+#[derive(Parser, Debug)]
+pub struct EditArgs {
+    #[arg(
+        required = true,
+        help = "edit bookmark data",
+        long_help = "edit bookmark data by id or fuzzy search query e.g. '123' or 'my query'",
+        value_name = "ID | query"
+    )]
+    pub query: SearchQuery,
+
+    #[arg(long, short)]
+    pub title: Option<String>,
+    #[arg(long, short)]
+    pub url: Option<String>,
+    #[arg(long, short)]
+    pub notes: Option<String>,
+    #[arg(long, short)]
+    pub category: Option<Category>,
+    #[arg(long, short)]
+    pub status: Option<Status>,
+    #[arg(long)]
+    pub hidden: Option<bool>,
+    #[arg(long)]
+    pub tags: Option<Vec<String>>,
 }
 
 #[derive(Parser, Debug)]

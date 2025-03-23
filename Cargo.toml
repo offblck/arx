@@ -7,6 +7,7 @@ edition = "2024"
 chrono = { version = "0.4.40", features = ["serde"] }
 clap = { version = "4.5.31", features = ["derive"] }
 cli-clipboard = "0.4.0"
+colored = "3.0.0"
 directories = "6.0.0"
 open = "5.3.2"
 serde = { version = "1.0.218", features = ["derive"] }

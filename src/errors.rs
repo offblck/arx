@@ -11,6 +11,9 @@ pub enum Error {
     #[error("Project directories not found")]
     NoProjectDirs,
 
+    #[error("Edit command requires at least one argument")]
+    NoEditSpecified,
+
     #[error("Clipboard not found: {0}")]
     ClipboardNotFound(String),
 

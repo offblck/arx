@@ -2,8 +2,9 @@ use crate::errors::Result;
 use chrono::{DateTime, Utc};
 use clap::Parser;
 use cli_clipboard::{ClipboardContext, ClipboardProvider};
+use colored::Colorize;
 use commands::{
-    AddCommand, CLI, Category, CopyUrlArgs, ListArgs, ListFields, OpenArgs, RemoveArgs,
+    AddArgs, CLI, Category, CopyUrlArgs, EditArgs, ListArgs, ListFields, OpenArgs, RemoveArgs,
     SearchQuery, Status, Subcommands,
 };
 use directories::ProjectDirs;
@@ -19,7 +20,7 @@ use tabled::{
     Tabled,
     builder::Builder,
     settings::{
-        Alignment, Border, Color, Padding, Style, Width,
+        Alignment, Border, Color, Format, Modify, Padding, Style, Width,
         formatting::TrimStrategy,
         object::{Cell, Columns, FirstRow, Object, Rows},
         width::MinWidth,
@@ -65,7 +66,7 @@ impl BookmarkStore {
         Ok(fs::write(&path, data)?)
     }
 
-    fn add(&mut self, args: AddCommand) -> Result<()> {
+    fn add(&mut self, args: AddArgs) -> Result<()> {
         let id = self.next_id;
         let new_bookmark = Bookmark {
             id,
@@ -177,9 +178,9 @@ impl BookmarkStore {
 
         table
             .modify(Columns::single(0), Padding::zero())
+            // .modify(FirstRow, Format::content(|s| format!("{}", s.bold().yellow())))
             .modify(Columns::single(0), MinWidth::new(5))
             .modify(Columns::single(1).intersect(Rows::new(1..)), Alignment::left())
-            .modify(FirstRow, Color::FG_YELLOW)
             .modify(Cell::new(0, 0), first_cell_border)
             .modify(FirstRow.intersect(Columns::new(1..headers.len())), middle_cell_border)
             .modify(Cell::new(0, headers.len() - 1), last_cell_border)
@@ -281,6 +282,46 @@ impl BookmarkStore {
         Ok(())
     }
 
+    fn edit(&mut self, args: EditArgs) -> Result<()> {
+        if args.category.is_none()
+            && args.hidden.is_none()
+            && args.notes.is_none()
+            && args.status.is_none()
+            && args.tags.is_none()
+            && args.title.is_none()
+            && args.url.is_none()
+        {
+            return Err(Error::NoEditSpecified);
+        }
+        let id = match args.query {
+            SearchQuery::Id(id) => self
+                .bookmarks
+                .iter()
+                .find_map(|b| if b.id == id { Some(b.id) } else { None })
+                .ok_or(Error::IDNotFound(id))?,
+            SearchQuery::Query(query) => fuzz(&query, &self.bookmarks),
+        };
+
+        let bookmark = &mut self.bookmarks[id];
+        if let Some(category) = args.category {
+            bookmark.category = category;
+        } else if let Some(hidden) = args.hidden {
+            bookmark.hidden = hidden;
+        } else if let Some(notes) = args.notes {
+            bookmark.notes = Some(notes);
+        } else if let Some(status) = args.status {
+            bookmark.status = status;
+        } else if let Some(tags) = args.tags {
+            bookmark.tags = Some(tags);
+        } else if let Some(title) = args.title {
+            bookmark.title = title;
+        } else if let Some(url) = args.url {
+            bookmark.url = Some(url);
+        }
+        self.save()?;
+        Ok(())
+    }
+
     fn open(&self, args: OpenArgs) -> Result<()> {
         match args.query {
             SearchQuery::Id(id) => match self.bookmarks.iter().find(|b| b.id == id) {
@@ -365,6 +406,7 @@ fn run() -> Result<()> {
         Subcommands::Add(args) => store.add(args)?,
         Subcommands::List(args) => store.list(args)?,
         Subcommands::Remove(query) => store.remove(query)?,
+        Subcommands::Edit(query) => store.edit(query)?,
         Subcommands::Open(query) => store.open(query)?,
         Subcommands::CopyUrl(query) => store.copy_url(query)?,
     }
