@@ -136,6 +136,9 @@ pub struct ListArgs {
     #[arg(short, long, help = "filter by tag")]
     pub tag: Option<String>,
 
+    #[arg(short, long, help = "set page to show")]
+    pub page: Option<usize>,
+
     #[arg(value_enum)]
     pub fields: Option<ListFields>,
 }

@@ -11,6 +11,9 @@ pub enum Error {
     #[error("Project directories not found")]
     NoProjectDirs,
 
+    #[error("Page {0} not found")]
+    PageNotFound(usize),
+
     #[error("Edit command requires at least one argument")]
     NoEditSpecified,
 

@@ -2,7 +2,9 @@ use crate::errors::Result;
 use chrono::{DateTime, Utc};
 use clap::Parser;
 use cli_clipboard::{ClipboardContext, ClipboardProvider};
-use comfy_table::{Cell, CellAlignment, Color, ColumnConstraint, Table, Width, presets::UTF8_FULL};
+use comfy_table::{
+    Attribute, Cell, CellAlignment, Color, ColumnConstraint, Table, Width, presets::UTF8_FULL,
+};
 use commands::{
     AddArgs, CLI, Category, CopyUrlArgs, EditArgs, ListArgs, ListFields, OpenArgs, RemoveArgs,
     SearchQuery, Status, Subcommands,
@@ -106,7 +108,7 @@ impl BookmarkStore {
 
         headers = headers
             .into_iter()
-            .map(|cell| cell.fg(Color::Yellow))
+            .map(|cell| cell.fg(Color::Yellow).add_attribute(Attribute::Bold))
             .collect();
 
         // Build header row w/ column widths
@@ -125,7 +127,21 @@ impl BookmarkStore {
 
         // Calculate rows
         let mut pending = vec![];
-        for (id, bookmark) in self.bookmarks.iter_mut().enumerate() {
+        let page = match args.page {
+            Some(page) if page == 0 => 1,
+            Some(page) => page,
+            None => 1,
+        };
+        if self.bookmarks.len() <= (page - 1) * 10 {
+            return Err(Error::PageNotFound(page));
+        }
+        for (id, bookmark) in self
+            .bookmarks
+            .iter_mut()
+            .enumerate()
+            .skip((page - 1) * 10)
+            .take(page * 10)
+        {
             let mut row = vec![bookmark.id.to_string(), bookmark.title.clone()];
             if bookmark.status == Status::Pending {
                 pending.push(id);
@@ -206,6 +222,10 @@ impl BookmarkStore {
         }
 
         println!("{table}");
+        println!(
+            "Showing page {page} out of {} (specify with -p <num>)",
+            (self.bookmarks.len() + 9) / 10
+        );
         Ok(())
     }
 
