@@ -6,8 +6,8 @@ use comfy_table::{
     Attribute, Cell, CellAlignment, Color, ColumnConstraint, Table, Width, presets::UTF8_FULL,
 };
 use commands::{
-    AddArgs, CLI, Category, CopyUrlArgs, EditArgs, ListArgs, ListFields, OpenArgs, RemoveArgs,
-    SearchQuery, Status, Subcommands,
+    AddArgs, CLI, Category, CopyUrlArgs, DoneArgs, EditArgs, ListArgs, ListFields, OpenArgs,
+    RemoveArgs, SearchQuery, Status, Subcommands,
 };
 use directories::ProjectDirs;
 use errors::Error;
@@ -248,6 +248,9 @@ impl BookmarkStore {
                 .retain(|b| b.tags.as_ref().unwrap().contains(tag));
         }
 
+        self.bookmarks
+            .retain(|b| b.status != Status::Done && !b.hidden);
+
         Ok(())
     }
 
@@ -327,6 +330,22 @@ impl BookmarkStore {
         } else if let Some(url) = args.url {
             bookmark.url = Some(url);
         }
+        self.save()?;
+        Ok(())
+    }
+
+    fn done(&mut self, args: DoneArgs) -> Result<()> {
+        match args.query {
+            SearchQuery::Id(id) => match self.bookmarks.iter_mut().find(|b| b.id == id) {
+                Some(bookmark) => bookmark.status = Status::Done,
+                None => return Err(Error::IDNotFound(id)),
+            },
+            SearchQuery::Query(query) => {
+                let id = fuzz(&query, &self.bookmarks);
+                self.bookmarks[id].status = Status::Done;
+            }
+        };
+
         self.save()?;
         Ok(())
     }
@@ -416,6 +435,7 @@ fn run() -> Result<()> {
         Subcommands::List(args) => store.list(args)?,
         Subcommands::Remove(query) => store.remove(query)?,
         Subcommands::Edit(query) => store.edit(query)?,
+        Subcommands::Done(query) => store.done(query)?,
         Subcommands::Open(query) => store.open(query)?,
         Subcommands::CopyUrl(query) => store.copy_url(query)?,
     }

@@ -1,5 +1,3 @@
-use crate::commands::CategoryParseError;
-
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("Bookmark with ID {0} not found")]
@@ -24,7 +22,7 @@ pub enum Error {
     ClipboardCopyError(String),
 
     #[error("Invalid category: {0}")]
-    CategoryParseError(#[from] CategoryParseError),
+    CategoryParseError(String),
 
     #[error("Parse error: {0}")]
     ParseError(#[from] serde_json::Error),

@@ -2,7 +2,8 @@ use std::{fmt, str::FromStr};
 
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
+
+use crate::errors::Error;
 
 #[derive(Parser, Debug)]
 #[command(version = "0.1.0")]
@@ -28,6 +29,9 @@ pub enum Subcommands {
 
     #[clap(about = "edit bookmark")]
     Edit(EditArgs),
+
+    #[clap(about = "mark bookmark as done")]
+    Done(DoneArgs),
 
     #[clap(name = "copy-url", about = "copy bookmark url (alias: cp)", alias = "cp")]
     CopyUrl(CopyUrlArgs),
@@ -87,12 +91,8 @@ pub enum Category {
     Other,
 }
 
-#[derive(Error, Debug)]
-#[error("Invalid category: {0}")]
-pub struct CategoryParseError(String);
-
 impl FromStr for Category {
-    type Err = CategoryParseError;
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
@@ -102,7 +102,7 @@ impl FromStr for Category {
             "project" => Ok(Category::Project),
             "tool" => Ok(Category::Tool),
             "course" => Ok(Category::Course),
-            _ => Err(CategoryParseError(s.to_string())),
+            _ => Err(Error::CategoryParseError(s.to_string())),
         }
     }
 }
@@ -197,6 +197,17 @@ pub struct EditArgs {
     pub hidden: Option<bool>,
     #[arg(long)]
     pub tags: Option<Vec<String>>,
+}
+
+#[derive(Parser, Debug)]
+pub struct DoneArgs {
+    #[arg(
+        required = true,
+        help = "mark bookmark as done",
+        long_help = "mark bookmark as done by id or fuzzy search query e.g. '123' or 'my query'",
+        value_name = "ID | query"
+    )]
+    pub query: SearchQuery,
 }
 
 #[derive(Parser, Debug)]
