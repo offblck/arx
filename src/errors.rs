@@ -1,3 +1,5 @@
+pub type Result<T> = core::result::Result<T, Error>;
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("Bookmark with ID {0} not found")]
@@ -24,10 +26,12 @@ pub enum Error {
     #[error("Invalid category: {0}")]
     CategoryParseError(String),
 
-    #[error("Parse error: {0}")]
+    #[error("JSON parse error: {0}")]
     ParseError(#[from] serde_json::Error),
+
+    #[error("Toml parse error: {0}")]
+    TomlParseError(#[from] toml::de::Error),
 
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }
-pub type Result<T> = core::result::Result<T, Error>;
