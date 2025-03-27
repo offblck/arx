@@ -74,7 +74,7 @@ impl fmt::Display for Status {
         match self {
             Status::None => write!(f, "━━"),
             Status::Pending => write!(f, "pending"),
-            Status::Done => write!(f, "done"),
+            Status::Done => write!(f, "DONE"),
         }
     }
 }

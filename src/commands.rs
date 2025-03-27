@@ -88,7 +88,7 @@ impl BookmarkStore {
         // Calculate rows
         let mut pending = vec![];
         let page = match args.page {
-            Some(page) if page == 0 => 1,
+            Some(0) => 1,
             Some(page) => page,
             None => 1,
         };
@@ -103,29 +103,36 @@ impl BookmarkStore {
             .take(page * 10)
         {
             let mut row = vec![
-                Cell::new(bookmark.id.to_string()),
-                Cell::new(bookmark.title.clone()).set_alignment(CellAlignment::Left),
+                Cell::new(bookmark.id),
+                Cell::new(&bookmark.title).set_alignment(CellAlignment::Left),
             ];
             if bookmark.status == Status::Pending {
                 pending.push(id);
             }
             match args.fields {
                 Some(ListFields::Urls) => {
-                    row.push(Cell::new(
-                        bookmark
-                            .url
-                            .clone()
-                            .map(|_url| "[XX]".to_string())
-                            .unwrap_or_else(|| "━━".to_string()),
-                    ));
+                    row.push(
+                        Cell::new(
+                            bookmark
+                                .url
+                                .clone()
+                                .map(|_url| "[XX]".to_string())
+                                .unwrap_or_else(|| "━━".to_string()),
+                        )
+                        .fg(Color::DarkBlue),
+                    );
                 }
                 Some(ListFields::Notes) => row.push(
                     Cell::new(bookmark.notes.clone().unwrap_or("-".to_string()))
                         .set_alignment(CellAlignment::Left),
                 ),
                 Some(ListFields::Hidden) | None => row.extend(vec![
-                    Cell::new(bookmark.category.to_string()),
-                    Cell::new(bookmark.status.to_string()),
+                    Cell::new(&bookmark.category),
+                    if bookmark.status == Status::Done {
+                        Cell::new(&bookmark.status).fg(Color::Green)
+                    } else {
+                        Cell::new(&bookmark.status)
+                    },
                 ]),
             };
             table.add_row(row);

@@ -11,18 +11,13 @@ use crate::{
 
 #[derive(Serialize, Deserialize)]
 pub struct BookmarkStore {
-    pub last_save_location: PathBuf,
     pub next_id: usize,
     pub bookmarks: Vec<Bookmark>,
 }
 
 impl Default for BookmarkStore {
     fn default() -> Self {
-        BookmarkStore {
-            last_save_location: PROJECT_DIRS.data_path.clone(),
-            next_id: 1,
-            bookmarks: Vec::new(),
-        }
+        BookmarkStore { next_id: 1, bookmarks: Vec::new() }
     }
 }
 
@@ -39,23 +34,25 @@ pub struct Bookmark {
     pub created_at: DateTime<Utc>,
 }
 
+#[derive(Serialize, Deserialize)]
+struct Metadata {
+    prev_save_location: PathBuf,
+}
+
 impl BookmarkStore {
     pub fn load(save_location: Option<PathBuf>) -> Result<BookmarkStore> {
         let save_location = match save_location {
             Some(path) => path,
             None => PROJECT_DIRS.data_path.clone(),
         };
+
+        amend_possible_change(&save_location)?;
+
         if !save_location.exists() {
             return Ok(BookmarkStore::default());
         }
         let data = fs::read_to_string(&save_location)?;
         let store: BookmarkStore = serde_json::from_str(&data)?;
-        if store.last_save_location != save_location {
-            if store.last_save_location.exists() {
-                let old_data = fs::read_to_string(&store.last_save_location)?;
-                let old_store: BookmarkStore = serde_json::from_str(&old_data)?;
-            }
-        }
         Ok(store)
     }
 
@@ -64,4 +61,18 @@ impl BookmarkStore {
         let data = serde_json::to_string(&self)?;
         Ok(fs::write(path, data)?)
     }
+}
+
+fn amend_possible_change(save_location: &PathBuf) -> Result<()> {
+    if PROJECT_DIRS.metadata.exists() {
+        let data = fs::read_to_string(&PROJECT_DIRS.metadata)?;
+        let metadata: Metadata = toml::from_str(&data)?;
+        if &metadata.prev_save_location != save_location {}
+    } else {
+        fs::create_dir_all(PROJECT_DIRS.metadata.parent().unwrap())?;
+        let metadata = Metadata { prev_save_location: PROJECT_DIRS.data_path.clone() };
+        let data = toml::to_string(&metadata)?;
+        fs::write(&PROJECT_DIRS.metadata, data)?;
+    }
+    Ok(())
 }

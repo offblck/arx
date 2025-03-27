@@ -32,6 +32,9 @@ pub enum Error {
     #[error("Toml parse error: {0}")]
     TomlParseError(#[from] toml::de::Error),
 
+    #[error("Internal error when serializing metadata: {0}")]
+    TomlSerializeError(#[from] toml::ser::Error),
+
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }
