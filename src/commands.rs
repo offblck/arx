@@ -86,7 +86,6 @@ impl BookmarkStore {
         }
 
         // Calculate rows
-        let mut pending = vec![];
         let page = match args.page {
             Some(0) => 1,
             Some(page) => page,
@@ -104,11 +103,15 @@ impl BookmarkStore {
         {
             let mut row = vec![
                 Cell::new(bookmark.id),
-                Cell::new(&bookmark.title).set_alignment(CellAlignment::Left),
+                if bookmark.status == Status::Pending {
+                    Cell::new(&bookmark.title)
+                        .fg(Color::White)
+                        .add_attribute(Attribute::Bold)
+                        .set_alignment(CellAlignment::Left)
+                } else {
+                    Cell::new(&bookmark.title).set_alignment(CellAlignment::Left)
+                },
             ];
-            if bookmark.status == Status::Pending {
-                pending.push(id);
-            }
             match args.fields {
                 Some(ListFields::Urls) => {
                     row.push(
@@ -130,6 +133,8 @@ impl BookmarkStore {
                     Cell::new(&bookmark.category).fg((&bookmark.category).into()),
                     if bookmark.status == Status::Done {
                         Cell::new(&bookmark.status).fg(Color::Green)
+                    } else if bookmark.status == Status::Pending {
+                        Cell::new(&bookmark.status).add_attribute(Attribute::Italic)
                     } else {
                         Cell::new(&bookmark.status)
                     },

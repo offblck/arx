@@ -1,6 +1,6 @@
 use crate::errors::Result;
 use clap::Parser;
-use comfy_table::{Cell, Color, Row, Table};
+use comfy_table::Cell;
 use command_types::{CLI, ListFields, Status, Subcommands};
 use config::{init_project_dirs, load_config};
 use data::BookmarkStore;
