@@ -94,10 +94,9 @@ impl BookmarkStore {
         if self.bookmarks.len() <= (page - 1) * 10 {
             return Err(Error::PageNotFound(page));
         }
-        for (id, bookmark) in self
+        for bookmark in self
             .bookmarks
             .iter_mut()
-            .enumerate()
             .skip((page - 1) * 10)
             .take(page * 10)
         {
@@ -169,41 +168,42 @@ impl BookmarkStore {
     }
 
     pub fn remove(&mut self, args: RemoveArgs) -> Result<()> {
-        match args.id {
-            SearchQuery::Id(id) => match self.bookmarks.iter().position(|e| e.id == id) {
-                Some(id) => {
+        for arg in args.list {
+            match arg {
+                SearchQuery::Id(id) => match self.bookmarks.iter().position(|e| e.id == id) {
+                    Some(id) => {
+                        let title = &mut self.bookmarks[id].title.clone();
+                        if title.len() > 24 {
+                            title.truncate(21);
+                            title.push_str("...");
+                        }
+                        let _ = self.bookmarks.remove(id);
+                        println!("Successfully removed #{id} - {}", title);
+                    }
+                    None => {
+                        return Err(Error::IDNotFound(id));
+                    }
+                },
+                SearchQuery::Query(query) => {
+                    let id = fuzz(&query, &self.bookmarks);
                     let title = &mut self.bookmarks[id].title.clone();
                     if title.len() > 24 {
                         title.truncate(21);
                         title.push_str("...");
                     }
-                    let _ = self.bookmarks.remove(id);
-                    println!("Successfully removed #{id} - {}", title);
-                    self.normalize();
-                }
-                None => {
-                    return Err(Error::IDNotFound(id));
-                }
-            },
-            SearchQuery::Query(query) => {
-                let id = fuzz(&query, &self.bookmarks);
-                let title = &mut self.bookmarks[id].title.clone();
-                if title.len() > 24 {
-                    title.truncate(21);
-                    title.push_str("...");
-                }
-                print!("Confirm removing '{}' from your bookmarks [y/n] ", title);
-                io::stdout().flush()?;
+                    print!("Confirm removing '{}' from your bookmarks [y/n] ", title);
+                    io::stdout().flush()?;
 
-                let mut input = String::new();
-                io::stdin().read_line(&mut input)?;
-                let input = input.trim().to_lowercase();
-                if input == "y" {
-                    let _ = self.bookmarks.remove(id);
-                    self.normalize();
+                    let mut input = String::new();
+                    io::stdin().read_line(&mut input)?;
+                    let input = input.trim().to_lowercase();
+                    if input == "y" {
+                        let _ = self.bookmarks.remove(id);
+                    }
                 }
-            }
-        };
+            };
+        }
+        self.normalize();
         self.save()?;
         Ok(())
     }

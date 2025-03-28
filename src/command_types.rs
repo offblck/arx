@@ -168,7 +168,7 @@ pub struct RemoveArgs {
         help = "remove bookmark by ID or fuzzy search query e.g. '123' or 'my query'",
         value_name = "ID | query"
     )]
-    pub id: SearchQuery,
+    pub list: Vec<SearchQuery>,
 }
 
 #[derive(Debug, Clone)]
