@@ -1,6 +1,7 @@
 use std::{fmt, str::FromStr};
 
 use clap::{Parser, Subcommand};
+use comfy_table::Color;
 use serde::{Deserialize, Serialize};
 
 use crate::errors::Error;
@@ -103,6 +104,20 @@ impl FromStr for Category {
             "tool" => Ok(Category::Tool),
             "course" => Ok(Category::Course),
             _ => Err(Error::CategoryParseError(s.to_string())),
+        }
+    }
+}
+
+impl From<&Category> for Color {
+    fn from(category: &Category) -> Self {
+        match category {
+            Category::Book => Color::Green,
+            Category::Article => Color::Magenta,
+            Category::Topic => Color::Blue,
+            Category::Project => Color::Red,
+            Category::Tool => Color::AnsiValue(5),
+            Category::Course => Color::Yellow,
+            Category::Other => Color::White,
         }
     }
 }

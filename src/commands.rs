@@ -127,7 +127,7 @@ impl BookmarkStore {
                         .set_alignment(CellAlignment::Left),
                 ),
                 Some(ListFields::Hidden) | None => row.extend(vec![
-                    Cell::new(&bookmark.category),
+                    Cell::new(&bookmark.category).fg((&bookmark.category).into()),
                     if bookmark.status == Status::Done {
                         Cell::new(&bookmark.status).fg(Color::Green)
                     } else {
