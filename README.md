@@ -1,3 +1,6 @@
+<div align="center">
+    <img src="https://github.com/offblck/arx/assets/example.png" />
+</div>
 <p align="center">ARX – a cli archive for all your bookmarks that you will totally read</p>
 <p align="center"><img alt="Static Badge" src="https://img.shields.io/badge/version-0.1.0-blue"></p>
 
@@ -22,8 +25,9 @@ Marks entry as done and hides it (like you'll ever need this... :smirk:)
 arx done 2
 ```
 # Installation
-arx is currently only available through release artifacts or built from source 😎 \
-after acquiring either, symlink it / put it in your bin folder or PATH
+> Are we package yet?
+Hell naw... 💔💔 arx is currently only available through release artifacts or built from source 😎 \
+but I know you are goated so put it in a PATH folder or symlink it and enjoy!
 
 # List of Commands
 ```
@@ -40,12 +44,7 @@ Options:
   -h, --help     Print help
   -V, --version  Print version
 ```
-You can get more detailed help messages for each subcommand, e.g.
-```
-arx help edit
-# same as
-arx edit --help
-```
+You can get more detailed help messages for each subcommand `arx help edit` (`arx edit --help`)
 
 # Configuration
 arx is configurable from the cli and it is preferred that you configure it this way, e.g.
