@@ -18,10 +18,7 @@ impl Arx {
     pub fn init() -> Result<Arx> {
         let config = load_config()?;
         let store = BookmarkStore::load()?;
-        Ok(Arx {
-            store,
-            config
-        })
+        Ok(Arx { store, config })
     }
 }
 

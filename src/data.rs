@@ -4,7 +4,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    command_types::{Category, Status}, config::{Config, PROJECT_DIRS}, errors::Result
+    command_types::{Category, Status},
+    config::{Config, PROJECT_DIRS},
+    errors::Result,
 };
 
 pub struct Arx {
@@ -56,6 +58,14 @@ impl BookmarkStore {
 
     pub fn save(&mut self) -> Result<()> {
         let data = serde_json::to_string(&self)?;
+        if !PROJECT_DIRS.save_location.exists() {
+            fs::create_dir_all(
+                PROJECT_DIRS
+                    .save_location
+                    .parent()
+                    .expect("Root as save location"),
+            )?
+        }
         Ok(fs::write(&PROJECT_DIRS.save_location, data)?)
     }
 }
