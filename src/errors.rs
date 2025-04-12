@@ -37,4 +37,10 @@ pub enum Error {
 
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error("No config args provided")]
+    NoConfigArgs,
+
+    #[error("Can't paginate by 0")]
+    ZeroPagination,
 }

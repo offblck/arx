@@ -24,12 +24,13 @@ fn run() -> Result<()> {
     let mut arx = Arx::init()?;
     match cli.command {
         Subcommands::Add(args) => arx.store.add(args)?,
-        Subcommands::List(args) => arx.store.list(args)?,
+        Subcommands::List(args) => arx.store.list(args, &arx.config)?,
         Subcommands::Remove(query) => arx.store.remove(query)?,
         Subcommands::Edit(query) => arx.store.edit(query)?,
         Subcommands::Done(query) => arx.store.done(query)?,
         Subcommands::Open(query) => arx.store.open(query)?,
         Subcommands::CopyUrl(query) => arx.store.copy_url(query)?,
+        Subcommands::Config(args) => arx.store.config(args, &mut arx.config)?,
     }
     Ok(())
 }

@@ -1,7 +1,8 @@
 use crate::command_types::{
-    AddArgs, CopyUrlArgs, DoneArgs, EditArgs, ListArgs, OpenArgs, RemoveArgs, SearchQuery,
+    AddArgs, ConfigArgs, CopyUrlArgs, DoneArgs, EditArgs, ListArgs, OpenArgs, RemoveArgs,
+    SearchQuery,
 };
-use crate::config::load_config;
+use crate::config::{Config, load_config};
 use crate::data::{Arx, Bookmark};
 use crate::{
     BookmarkStore, Cell, Error, ListFields, Status,
@@ -11,13 +12,14 @@ use crate::{
 use comfy_table::{
     Attribute, CellAlignment, Color, ColumnConstraint, Table, Width, presets::UTF8_FULL,
 };
+use std::fs;
 use std::io::{self, Write};
 use terminal_link::Link;
 
 impl Arx {
     pub fn init() -> Result<Arx> {
         let config = load_config()?;
-        let store = BookmarkStore::load()?;
+        let store = BookmarkStore::load(&config)?;
         Ok(Arx { store, config })
     }
 }
@@ -43,7 +45,7 @@ impl BookmarkStore {
         Ok(())
     }
 
-    pub fn list(&mut self, mut args: ListArgs) -> Result<()> {
+    pub fn list(&mut self, mut args: ListArgs, config: &Config) -> Result<()> {
         if self.bookmarks.is_empty() {
             println!("You have no bookmarks yet...");
             return Ok(());
@@ -53,7 +55,13 @@ impl BookmarkStore {
         self.filter_args(&mut args)?;
 
         let mut table = Table::new();
-        table.load_preset(UTF8_FULL);
+        table.load_preset(
+            config
+                .table_style
+                .as_ref()
+                .map(|s| s.to_comfy_style())
+                .unwrap_or(UTF8_FULL),
+        );
 
         // Initialize headers and calculate column widths
         let mut headers = vec![Cell::new("ID"), Cell::new("name")];
@@ -101,14 +109,16 @@ impl BookmarkStore {
             Some(page) => page,
             None => 1,
         };
-        if self.bookmarks.len() <= (page - 1) * 10 {
+        let paginate_by = config.page_by.unwrap_or(10);
+        if self.bookmarks.len() <= (page - 1) * paginate_by {
             return Err(Error::PageNotFound(page));
         }
+
         for bookmark in self
             .bookmarks
             .iter_mut()
-            .skip((page - 1) * 10)
-            .take(page * 10)
+            .skip((page - 1) * paginate_by)
+            .take(page * paginate_by)
         {
             let mut row = vec![
                 Cell::new(bookmark.id),
@@ -172,7 +182,7 @@ impl BookmarkStore {
         println!("{table}");
         println!(
             "Showing page {page} out of {} (specify with -p <num>)",
-            (self.bookmarks.len() + 9) / 10
+            self.bookmarks.len().div_ceil(paginate_by)
         );
         Ok(())
     }
@@ -311,6 +321,28 @@ impl BookmarkStore {
                 }
             }
         }
+        Ok(())
+    }
+
+    pub fn config(&self, args: ConfigArgs, config: &mut Config) -> Result<()> {
+        args.validate()?;
+        if let Some(mut path) = args.save_location {
+            if path.is_dir() {
+                path = path.join("bookmarks.json");
+            }
+            fs::rename(&config.save_location, &path)?;
+            config.save_location = path;
+        }
+        if let Some(num) = args.page_by {
+            if num == 0 {
+                return Err(Error::ZeroPagination);
+            }
+            config.page_by = Some(num);
+        }
+        if let Some(style) = args.table_style {
+            config.table_style = Some(style);
+        }
+        self.save_config(config)?;
         Ok(())
     }
 }

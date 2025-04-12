@@ -32,6 +32,7 @@ but I know you are goated so put it in a PATH folder or symlink it and enjoy!
 
 # List of Commands
 ```
+Commands:
   add       add bookmark
   list      list bookmarks (alias: ls)
   remove    remove bookmark (alias: rm, del, delete)
@@ -39,6 +40,7 @@ but I know you are goated so put it in a PATH folder or symlink it and enjoy!
   edit      edit bookmark
   done      mark bookmark as done
   copy-url  copy bookmark url (alias: cp)
+  config    configure arx
   help      Print this message or the help of the given subcommand(s)
 
 Options:
@@ -55,10 +57,10 @@ arx config --save-location <path>
 ```
 
 List of configs:
-- `save_location <path>` – set the directory in which your data should be saved (arx moves the file for you)
-- `table_style <style>` – set the style of the displayed table \
+- `--save-location <path>` – set the directory in which your data should be saved (arx moves the file for you)
+- `--table-style <style>` – set the style of the displayed table \
   - values include all the variants found in [comfy_table](https://docs.rs/comfy-table/latest/comfy_table/presets/index.html) and it is set to "utf8_full" by default
-- `page_by <number | "all">` – sets the number of entries to show at a time. set to "all" to uncap. default: 10
+- `--page-by <number>` – sets the number of entries to show at a time. default: 10
 
 # Sync
 The save location is configurable, but by default user data gets saved in a `bookmarks.json` file using the `directories` rust crate, meaning:

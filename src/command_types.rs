@@ -1,10 +1,10 @@
-use std::{fmt, str::FromStr};
+use std::{fmt, path::PathBuf, str::FromStr};
 
 use clap::{Parser, Subcommand};
-use comfy_table::Color;
+use comfy_table::{Color, presets};
 use serde::{Deserialize, Serialize};
 
-use crate::errors::Error;
+use crate::errors::{Error, Result};
 
 #[derive(Parser, Debug)]
 #[command(version = "0.1.0")]
@@ -36,6 +36,9 @@ pub enum Subcommands {
 
     #[clap(name = "copy-url", about = "copy bookmark url (alias: cp)", alias = "cp")]
     CopyUrl(CopyUrlArgs),
+
+    #[clap(name = "config", about = "configure arx")]
+    Config(ConfigArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -95,7 +98,7 @@ pub enum Category {
 impl FromStr for Category {
     type Err = Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self> {
         match s.to_lowercase().as_str() {
             "book" => Ok(Category::Book),
             "article" => Ok(Category::Article),
@@ -180,7 +183,7 @@ pub enum SearchQuery {
 impl FromStr for SearchQuery {
     type Err = String;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         // Try parsing as u64 first
         if let Ok(id) = s.parse::<usize>() {
             Ok(SearchQuery::Id(id))
@@ -247,4 +250,68 @@ pub struct CopyUrlArgs {
         value_name = "ID | query"
     )]
     pub query: SearchQuery,
+}
+
+#[derive(Clone, clap::ValueEnum, Debug, Deserialize, Serialize)]
+#[clap(rename_all = "snake_case")]
+pub enum TableStyle {
+    AsciiFull,
+    AsciiFullCondensed,
+    AsciiNoBorders,
+    AsciiBordersOnly,
+    AsciiBordersOnlyCondensed,
+    AsciiHorizontalOnly,
+    AsciiMarkdown,
+    Utf8Full,
+    Utf8FullCondensed,
+    Utf8NoBorders,
+    Utf8BordersOnly,
+    Utf8HorizontalOnly,
+    Nothing,
+}
+
+impl TableStyle {
+    pub fn to_comfy_style(&self) -> &'static str {
+        match self {
+            TableStyle::AsciiFull => presets::ASCII_FULL,
+            TableStyle::AsciiFullCondensed => presets::ASCII_FULL_CONDENSED,
+            TableStyle::AsciiNoBorders => presets::ASCII_NO_BORDERS,
+            TableStyle::AsciiBordersOnly => presets::ASCII_BORDERS_ONLY,
+            TableStyle::AsciiBordersOnlyCondensed => presets::ASCII_BORDERS_ONLY_CONDENSED,
+            TableStyle::AsciiHorizontalOnly => presets::ASCII_HORIZONTAL_ONLY,
+            TableStyle::AsciiMarkdown => presets::ASCII_MARKDOWN,
+            TableStyle::Utf8Full => presets::UTF8_FULL,
+            TableStyle::Utf8FullCondensed => presets::UTF8_FULL_CONDENSED,
+            TableStyle::Utf8NoBorders => presets::UTF8_NO_BORDERS,
+            TableStyle::Utf8BordersOnly => presets::UTF8_BORDERS_ONLY,
+            TableStyle::Utf8HorizontalOnly => presets::UTF8_HORIZONTAL_ONLY,
+            TableStyle::Nothing => presets::NOTHING,
+        }
+    }
+}
+
+#[derive(Parser, Debug)]
+#[clap(group(
+    clap::ArgGroup::new("config-args")
+        .required(true)
+        .args(&["save-location", "table-style", "page-by"])
+))]
+pub struct ConfigArgs {
+    #[arg(long, short, name = "save-location")]
+    pub save_location: Option<PathBuf>,
+
+    #[arg(long, short, name = "table-style")]
+    pub table_style: Option<TableStyle>,
+
+    #[arg(long, short, name = "page-by")]
+    pub page_by: Option<usize>,
+}
+
+impl ConfigArgs {
+    pub fn validate(&self) -> Result<()> {
+        if self.save_location.is_none() && self.table_style.is_none() && self.page_by.is_none() {
+            return Err(Error::NoConfigArgs);
+        }
+        Ok(())
+    }
 }

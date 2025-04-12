@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::fs;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -45,13 +45,13 @@ pub struct Bookmark {
 // }
 
 impl BookmarkStore {
-    pub fn load() -> Result<BookmarkStore> {
+    pub fn load(config: &Config) -> Result<BookmarkStore> {
         // amend_possible_change(&save_location)?;
 
-        if !PROJECT_DIRS.save_location.exists() {
+        if !config.save_location.exists() {
             return Ok(BookmarkStore::default());
         }
-        let data = fs::read_to_string(&PROJECT_DIRS.save_location)?;
+        let data = fs::read_to_string(&config.save_location)?;
         let store: BookmarkStore = serde_json::from_str(&data)?;
         Ok(store)
     }
@@ -67,6 +67,14 @@ impl BookmarkStore {
             )?
         }
         Ok(fs::write(&PROJECT_DIRS.save_location, data)?)
+    }
+
+    pub fn save_config(&self, config: &mut Config) -> Result<()> {
+        let data = toml::to_string(config)?;
+        if !PROJECT_DIRS.config_path.exists() {
+            fs::create_dir_all(PROJECT_DIRS.config_path.parent().unwrap())?
+        }
+        Ok(fs::write(&PROJECT_DIRS.config_path, data)?)
     }
 }
 
