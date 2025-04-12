@@ -1,48 +1,53 @@
-use std::{cell::LazyCell, fs, path::PathBuf};
+use std::{fs, path::PathBuf, sync::LazyLock};
 
+use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 
 use crate::errors::{Error, Result};
 
-pub const PROJECT_DIRS: LazyCell<ProjectDirs> =
-    LazyCell::new(|| match directories::ProjectDirs::from("dev", "offblck", "arx") {
-        Some(proj_dirs) => ProjectDirs {
-            data_path: proj_dirs.data_dir().join("bookmarks.json"),
-            config_path: proj_dirs.config_dir().join("config.toml"),
-            metadata: proj_dirs.data_dir().join(".metadata.toml"),
+#[derive(Default)]
+pub struct DefaultDirs {
+    pub save_location: PathBuf,
+    pub config_path: PathBuf,
+    error: bool,
+}
+
+pub static PROJECT_DIRS: LazyLock<DefaultDirs> = LazyLock::new(|| {
+    match ProjectDirs::from("dev", "offblck", "arx") {
+        Some(dirs) => DefaultDirs {
+            save_location: dirs.data_dir().join("bookmarks.json"),
+            config_path: dirs.config_dir().join("config.toml"),
             error: false,
         },
-        None => ProjectDirs { error: true, ..ProjectDirs::default() },
-    });
-
-#[derive(Default)]
-pub struct ProjectDirs {
-    pub data_path: PathBuf,
-    pub config_path: PathBuf,
-    pub metadata: PathBuf,
-    pub error: bool,
-}
+        None => DefaultDirs { error: true, ..DefaultDirs::default() }
+    }
+});
 
 #[derive(Serialize, Deserialize)]
 pub struct Config {
+    #[serde(default = "default_save_location")]
     pub save_location: PathBuf,
 }
 
-pub fn init_project_dirs() -> Result<()> {
-    // first access to LazyCell inits PROJECT_DIRS
-    match PROJECT_DIRS.error {
-        true => Err(Error::NoProjectDirs),
-        false => Ok(()),
+pub fn load_config() -> Result<Config> {
+    let default_dirs = LazyLock::force(&PROJECT_DIRS);
+    if default_dirs.error {
+        return Err(Error::NoProjectDirs);
+    }
+    match default_dirs.config_path.exists() {
+        true => {
+            let data = fs::read_to_string(&default_dirs.config_path)?;
+            let config: Config = toml::from_str(&data)?;
+            Ok(config)
+        }
+        false => {
+            Ok(Config { 
+                save_location: default_dirs.save_location.clone(), 
+            })
+        }
     }
 }
 
-pub fn load_config() -> Result<Option<Config>> {
-    match PROJECT_DIRS.config_path.exists() {
-        true => {
-            let data = fs::read_to_string(&PROJECT_DIRS.config_path)?;
-            let config = toml::from_str(&data)?;
-            Ok(Some(config))
-        }
-        false => Ok(None),
-    }
+pub fn default_save_location() -> PathBuf {
+    PROJECT_DIRS.save_location.clone()
 }

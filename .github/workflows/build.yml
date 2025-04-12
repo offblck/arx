@@ -15,4 +15,4 @@ jobs:
           toolchain: stable
           override: true
       - name: Build
-        run: cargo build --verbose
+        run: cargo build

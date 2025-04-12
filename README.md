@@ -1,5 +1,5 @@
 <div align="center">
-    <img src="https://github.com/offblck/arx/assets/example.png" />
+    <img src="https://github.com/offblck/arx/blob/master/assets/example.png" />
 </div>
 <p align="center">ARX – a cli archive for all your bookmarks that you will totally read</p>
 <p align="center"><img alt="Static Badge" src="https://img.shields.io/badge/version-0.1.0-blue"></p>
@@ -26,6 +26,7 @@ arx done 2
 ```
 # Installation
 > Are we package yet?
+
 Hell naw... 💔💔 arx is currently only available through release artifacts or built from source 😎 \
 but I know you are goated so put it in a PATH folder or symlink it and enjoy!
 

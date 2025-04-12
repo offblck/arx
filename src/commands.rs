@@ -1,7 +1,8 @@
 use crate::command_types::{
     AddArgs, CopyUrlArgs, DoneArgs, EditArgs, ListArgs, OpenArgs, RemoveArgs, SearchQuery,
 };
-use crate::data::Bookmark;
+use crate::config::load_config;
+use crate::data::{Arx, Bookmark};
 use crate::{
     BookmarkStore, Cell, Error, ListFields, Status,
     errors::Result,
@@ -12,6 +13,17 @@ use comfy_table::{
 };
 use std::io::{self, Write};
 use terminal_link::Link;
+
+impl Arx {
+    pub fn init() -> Result<Arx> {
+        let config = load_config()?;
+        let store = BookmarkStore::load()?;
+        Ok(Arx {
+            store,
+            config
+        })
+    }
+}
 
 impl BookmarkStore {
     pub fn add(&mut self, args: AddArgs) -> Result<()> {
