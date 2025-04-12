@@ -42,6 +42,7 @@ impl BookmarkStore {
         self.bookmarks.push(new_bookmark);
         self.next_id += 1;
         self.save()?;
+        println!("Bookmark with ID #{} successfully added!", self.next_id - 1);
         Ok(())
     }
 
