@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build-release:
     runs-on: ${{ matrix.os }}
@@ -40,20 +43,16 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
-      - id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          release_name: ${{ github.ref_name }}
-      - run: |
-          for artifact in arx-linux arx-macos arx-windows.exe; do
-            if [[ -f "artifacts/$artifact/$artifact" ]]; then
-              curl -X POST \
-                -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                -H "Content-Type: application/octet-stream" \
-                --data-binary @artifacts/$artifact/$artifact \
-                ${{ steps.create_release.outputs.upload_url }}?name=$artifact
-            fi
-          done
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/arx-linux/arx-linux
+            artifacts/arx-macos/arx-macos
+            artifacts/arx-windows.exe/arx-windows.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
